@@ -1,24 +1,20 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import RequirementForm from '../components/RequirementForm.jsx';
 import ProgressIndicator from '../components/ProgressIndicator.jsx';
-import ComparisonTable from '../components/ComparisonTable.jsx';
-import MarkdownExportButton from '../components/MarkdownExportButton.jsx';
 import { api } from '../services/api.js';
 
 const steps = ['vendor discovery', 'scraping vendor pages', 'extracting structured fields', 'scoring and ranking'];
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('');
-  const [shortlist, setShortlist] = useState(null);
-  const [requirements, setRequirements] = useState(null);
 
   async function handleSubmit(payload) {
     setLoading(true);
     setError('');
-    setShortlist(null);
-    setRequirements(payload.requirements);
 
     const timer = setInterval(() => {
       setStep((cur) => {
@@ -32,7 +28,7 @@ export default function HomePage() {
 
     try {
       const result = await api.buildShortlist(payload);
-      setShortlist(result);
+      navigate('/results', { state: { shortlist: result, requirements: payload.requirements } });
     } catch (e) {
       if (e?.status === 429 || e?.code === 'GEMINI_RATE_LIMIT') {
         const retry = e?.details?.retryAfterSeconds;
@@ -49,15 +45,11 @@ export default function HomePage() {
 
   return (
     <section>
-      <RequirementForm onSubmit={handleSubmit} loading={loading} />
+      <div className={loading ? 'content-blur' : ''}>
+        <RequirementForm onSubmit={handleSubmit} loading={loading} />
+        {error ? <p className="error">{error}</p> : null}
+      </div>
       <ProgressIndicator loading={loading} step={step} />
-      {error ? <p className="error">{error}</p> : null}
-      {shortlist ? (
-        <>
-          <ComparisonTable shortlist={shortlist} />
-          <MarkdownExportButton shortlist={shortlist} requirements={requirements} />
-        </>
-      ) : null}
     </section>
   );
 }

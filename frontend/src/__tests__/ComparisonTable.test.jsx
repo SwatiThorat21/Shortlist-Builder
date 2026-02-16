@@ -12,8 +12,8 @@ describe('ComparisonTable', () => {
     };
 
     render(<ComparisonTable shortlist={shortlist} />);
-    expect(screen.getByText(/A > B/)).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === 'Ranking: A > B')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Exclude A'));
-    expect(screen.getByText(/B/)).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === 'Ranking: B')).toBeInTheDocument();
   });
 });

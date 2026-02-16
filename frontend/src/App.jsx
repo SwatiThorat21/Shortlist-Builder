@@ -2,6 +2,7 @@ import { Link, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage.jsx';
 import HistoryPage from './pages/HistoryPage.jsx';
 import StatusPage from './pages/StatusPage.jsx';
+import ResultsPage from './pages/ResultsPage.jsx';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/results" element={<ResultsPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/status" element={<StatusPage />} />
         </Routes>

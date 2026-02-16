@@ -1,120 +1,136 @@
-:root {
-  font-family: "Work Sans", "Segoe UI", sans-serif;
-  color: #1e293b;
-  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: "Sora", "Work Sans", "Segoe UI", sans-serif;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-gradient-to-b from-slate-50 via-sky-50 to-indigo-100 text-slate-800 antialiased;
+  }
+
+  a {
+    @apply text-slate-700 no-underline transition-colors hover:text-sky-700;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer components {
+  .app-shell {
+    @apply mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8;
+  }
 
-body {
-  margin: 0;
-}
+  header {
+    @apply mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between;
+  }
 
-.app-shell {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px;
-}
+  nav {
+    @apply flex flex-wrap items-center gap-2;
+  }
 
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+  nav a {
+    @apply rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium shadow-sm hover:border-sky-300 hover:bg-sky-50;
+  }
 
-nav {
-  display: flex;
-  gap: 12px;
-}
+  .card {
+    @apply mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
+  }
 
-a {
-  color: #0f172a;
-  text-decoration: none;
-}
-
-.card {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 14px;
-  border: 1px solid #e2e8f0;
-}
-
-form label {
-  display: block;
-  margin-bottom: 10px;
-}
-
-input, textarea, button {
-  width: 100%;
-  padding: 8px;
-  margin-top: 4px;
-}
-
-button {
-  cursor: pointer;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 8px;
-  text-align: left;
-}
-
-.error {
-  color: #b91c1c;
-}
+  .error {
+    @apply text-rose-700;
+  }
 
 .progress-box {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
+  @apply flex items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-3;
 }
 
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 3px solid #cbd5e1;
-  border-top-color: #0f172a;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
+  .spinner {
+    @apply h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-sky-600;
+  }
 
-.status-row {
-  display: flex;
-  justify-content: space-between;
-}
+  .status-row {
+    @apply flex items-center justify-between gap-3;
+  }
 
-.ok {
-  color: #15803d;
-}
+  .ok {
+    @apply text-emerald-700;
+  }
 
 .bad {
-  color: #b91c1c;
+  @apply text-rose-700;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.content-blur {
+  filter: blur(3px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+.progress-modal {
+  width: min(92vw, 460px);
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  padding: 20px;
+}
+
+.progress-title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.progress-step {
+  margin: 8px 0 14px;
+  color: #334155;
+  text-transform: capitalize;
+  font-size: 0.95rem;
+}
+
+.progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+  animation: progress-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-pulse {
+  0% {
+    transform: translateX(-100%);
   }
+  100% {
+    transform: translateX(260%);
+  }
+}
 }
 
 @media (max-width: 700px) {
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  table, thead, tbody, th, td, tr {
+  table,
+  thead,
+  tbody,
+  th,
+  td,
+  tr {
     display: block;
   }
 

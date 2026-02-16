@@ -46,4 +46,22 @@ describe('scoringService', () => {
     });
     expect(score).toBeLessThan(60);
   });
+
+  it('scores vendor when weights are not provided', () => {
+    const { weights, ...requirementsWithoutWeights } = requirements;
+    const score = scoreVendor({
+      requirements: requirementsWithoutWeights,
+      vendor: {
+        price_range: 'Standard starts at $999',
+        matched_features: ['SSO', 'Audit logs'],
+        missing_features: [],
+        risks: [],
+        regional_support: 'US, EU'
+      }
+    });
+
+    expect(typeof score).toBe('number');
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
+  });
 });
