@@ -1,37 +1,40 @@
 # Vendor Discovery + Shortlist Builder
 
-Production-ready web app to discover vendors, scrape public pricing/docs pages, extract structured evidence with Gemini, score deterministically, and persist shortlists in Supabase.
+App that discovers vendors from a use-case prompt, scrapes public pricing/docs pages, extracts structured evidence with Gemini, scores vendors, and stores shortlist history in Supabase.
 
 ## Tech Stack
-- Frontend: React + Vite (functional components)
+- Frontend: React + Vite
 - Backend: Node.js + Express + Axios + Cheerio
 - Database: Supabase Postgres (JSONB)
-- LLM: Gemini AI Studio (`gemini-2.0-flash`)
+- LLM: Gemini AI Studio (`gemini-2.0-flash` by default)
 - Validation: Zod
-- Environment: dotenv
 
-## Monorepo Layout
-- `frontend/` UI app
-- `backend/` API + orchestration pipeline
-- `supabase/schema.sql` database schema
-- `README.md`, `AI_NOTES.md`, `PROMPTS_USED.md`, `ABOUTME.md`
+## Project Structure
+- `frontend/`: React app (form, results table, history, status page, markdown export)
+- `backend/`: API routes + discovery/scrape/extract/score pipeline
+- `supabase/schema.sql`: SQL schema for shortlist + cache tables
 
-## Setup
-1. Install dependencies:
+## How To Run
+1. Install dependencies from repo root:
    ```bash
    npm install
-   npm install -w backend
-   npm install -w frontend
    ```
-2. Create `.env` from `.env.example` and set values.
-3. Apply SQL schema in Supabase SQL editor using `supabase/schema.sql`.
-4. Start locally:
+2. Create `.env` from `.env.example` and fill values.
+3. Apply DB schema in Supabase SQL editor:
+   ```sql
+   -- run file: supabase/schema.sql
+   ```
+4. Start backend and frontend:
    ```bash
    npm run dev:backend
    npm run dev:frontend
    ```
+5. Optional (single command for both):
+   ```bash
+   npm run dev
+   ```
 
-## Required Environment Variables
+## Environment Variables
 - `PORT`
 - `FRONTEND_ORIGIN`
 - `GEMINI_API_KEY`
@@ -46,46 +49,58 @@ Production-ready web app to discover vendors, scrape public pricing/docs pages, 
 - `RATE_LIMIT_MAX`
 - `VITE_API_BASE_URL`
 
-## API Summary
-- `POST /api/shortlists/build` build and save shortlist
-- `GET /api/shortlists?limit=5` fetch recent shortlists
-- `DELETE /api/shortlists/:id` delete shortlist
-- `GET /api/status` service health and latency checks
+## API Endpoints
+- `POST /api/shortlists/build`: Discover, scrape, extract, score, persist shortlist
+- `GET /api/shortlists?limit=5`: Get recent shortlist history
+- `DELETE /api/shortlists/:id`: Delete one shortlist item
+- `GET /api/status`: Service health + latency checks (`express`, `supabase`, `gemini`)
+- `GET /health`: Basic backend health
 
-## Architecture Overview
-1. Validate user input and requirement weights.
-2. Discover vendors via Gemini structured JSON output.
-3. Scrape pricing/docs pages (Axios + Cheerio) with cache table.
-4. Extract structured vendor fields via Gemini structured JSON output.
-5. Deterministically score and rank vendors in backend code.
-6. Persist shortlist and serve history.
+## What Is Done
+- End-to-end shortlist pipeline:
+  - Input validation with Zod
+  - Vendor discovery with Gemini structured output
+  - URL validation + domain dedupe
+  - Scraping pricing/docs pages
+  - Structured extraction from scraped text
+  - Deterministic scoring + ranking
+  - Save shortlist in Supabase
+- Frontend flow:
+  - Requirement form (need, budget, region, must-have, nice-to-have, team size, compliance)
+  - Loading/progress states
+  - Results comparison table
+  - Markdown export for results
+  - History page (list, open, delete)
+  - Status page for service checks
+- Reliability and guardrails:
+  - Rate limit on shortlist build route
+  - Request/error handling with consistent error responses
+  - CORS configuration via `FRONTEND_ORIGIN`
+  - Tests for key backend/frontend units and integration paths
+
+## What Is Not Done Yet
+- No authentication/authorization (history is global).
+- No per-user/project tenancy model.
+- No streaming progress from backend (frontend progress is simulated).
+- No background job queue/retry workflow for long-running builds.
+- Scraping is best-effort and can fail on JS-heavy/blocked pages.
+- Budget interpretation is heuristic (free-text normalization).
 
 ## Testing
-- Backend:
-  ```bash
-  npm run test -w backend
-  ```
-- Frontend:
-  ```bash
-  npm run test -w frontend
-  ```
-- All:
+- Run all tests:
   ```bash
   npm run test
   ```
-
-## Known Limitations
-- Budget is free-text and normalized heuristically.
-- Scraping quality depends on website HTML structure and access controls.
-- No auth in MVP; history is global.
-
-## Assumptions
-- Public vendor pages are legally accessible to scrape.
-- Gemini returns schema-compatible JSON after max one repair retry.
-- Supabase service role key is server-side only.
+- Backend only:
+  ```bash
+  npm run test -w backend
+  ```
+- Frontend only:
+  ```bash
+  npm run test -w frontend
+  ```
 
 ## Security Notes
-- Do not expose `SUPABASE_SERVICE_ROLE_KEY` in frontend.
-- Restrict CORS via `FRONTEND_ORIGIN`.
-- Rate limiting is enabled on shortlist build endpoint.
-- All LLM output is validated before storage.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
+- Restrict frontend origin with `FRONTEND_ORIGIN`.
+- Keep Gemini/Supabase secrets in `.env`, never in frontend code.
