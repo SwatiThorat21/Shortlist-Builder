@@ -1,0 +1,19 @@
+{
+  "name": "vendor-shortlist-builder",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w backend & npm run dev -w frontend",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "test": "npm run test -w backend && npm run test -w frontend"
+  },
+  "devDependencies": {
+    "supabase": "^2.76.8"
+  }
+}
