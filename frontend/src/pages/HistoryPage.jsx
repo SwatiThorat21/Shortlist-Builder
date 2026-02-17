@@ -49,10 +49,15 @@ export default function HistoryPage() {
   }
 
   return (
-    <section>
-      <h2>History</h2>
-      {loading ? <p>Loading...</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+    <section className="mx-auto w-full max-w-5xl px-1 sm:px-2">
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">History</h2>
+        <p className="mt-1 text-sm text-slate-600">Review previous shortlists and reopen results anytime.</p>
+      </div>
+      {loading ? (
+        <p className="mb-3 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-600">Loading history...</p>
+      ) : null}
+      {error ? <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       <HistoryList items={items} onDelete={handleDeleteRequest} onOpen={handleOpen} />
 
       {pendingDeleteId ? (
