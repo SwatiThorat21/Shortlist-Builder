@@ -33,6 +33,8 @@ export const config = {
   frontendOrigin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+  geminiMaxRetries: Number(process.env.GEMINI_MAX_RETRIES || 2),
+  geminiRetryBaseMs: Number(process.env.GEMINI_RETRY_BASE_MS || 1200),
   supabaseUrl: process.env.SUPABASE_URL || '',
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   cacheTtlMinutes: Number(process.env.CACHE_TTL_MINUTES || 180),

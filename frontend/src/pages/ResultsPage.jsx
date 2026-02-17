@@ -5,6 +5,10 @@ import MarkdownExportButton from '../components/MarkdownExportButton.jsx';
 
 const RESULTS_STORAGE_KEY = 'vendor_shortlist_results_v1';
 
+function formatList(items) {
+  return items?.length ? items.join(', ') : 'Not provided';
+}
+
 export default function ResultsPage() {
   const location = useLocation();
   const persisted = useMemo(() => {
@@ -46,6 +50,32 @@ export default function ResultsPage() {
   return (
     <section>
       <h2>Shortlist Results</h2>
+      <div className="card">
+        <h3 className="mb-3 text-lg font-semibold text-slate-900">Your Inputs</h3>
+        <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+          <p className="sm:col-span-2">
+            <span className="font-semibold text-slate-900">Need:</span> {shortlist.need || 'Not provided'}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Budget:</span> {requirements?.budget_text || 'Not provided'}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Region:</span> {requirements?.region || 'Not provided'}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Team size:</span> {requirements?.team_size || 'Not provided'}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Must-have:</span> {formatList(requirements?.must_have_features)}
+          </p>
+          <p className="sm:col-span-2">
+            <span className="font-semibold text-slate-900">Nice-to-have:</span> {formatList(requirements?.nice_to_have_features)}
+          </p>
+          <p className="sm:col-span-2">
+            <span className="font-semibold text-slate-900">Compliance:</span> {formatList(requirements?.compliance_constraints)}
+          </p>
+        </div>
+      </div>
       <ComparisonTable shortlist={shortlist} />
       <MarkdownExportButton shortlist={shortlist} requirements={requirements} />
     </section>

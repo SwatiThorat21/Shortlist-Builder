@@ -5,55 +5,103 @@ import { logTokenUsage } from '../utils/tokenUsage.js';
 
 const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 
-export async function generateStructuredJson(prompt, { tag }) {
-  try {
-    const model = genAI.getGenerativeModel({ model: config.geminiModel });
-    const start = Date.now();
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.2
-      }
-    });
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-    const text = result.response.text();
-    const latencyMs = Date.now() - start;
-    const usage = result.response.usageMetadata
-      ? {
-        promptTokenCount: result.response.usageMetadata.promptTokenCount,
-        candidatesTokenCount: result.response.usageMetadata.candidatesTokenCount,
-        totalTokenCount: result.response.usageMetadata.totalTokenCount,
-        latencyMs
-      }
-      : { latencyMs };
-    logTokenUsage(tag, usage);
-    return text;
-  } catch (error) {
-    const msg = String(error?.message || 'Gemini request failed');
-    const retryInMatch = msg.match(/retry in\s+([\d.]+)s/i);
-    const retryDelayMatch = msg.match(/"retryDelay":"(\d+)s"/i);
-    const retryAfterSeconds = retryInMatch
-      ? Math.ceil(Number(retryInMatch[1]))
-      : retryDelayMatch
-        ? Number(retryDelayMatch[1])
-        : undefined;
+function parseRetryAfterSeconds(msg) {
+  const retryInMatch = msg.match(/retry in\s+([\d.]+)s/i);
+  const retryDelayMatch = msg.match(/"retryDelay":"(\d+)s"/i);
+  if (retryInMatch) return Math.ceil(Number(retryInMatch[1]));
+  if (retryDelayMatch) return Number(retryDelayMatch[1]);
+  return undefined;
+}
 
-    if (/too many requests|quota exceeded|rate limit|\b429\b/i.test(msg)) {
-      throw new AppError(
+function mapGeminiError(error) {
+  const msg = String(error?.message || 'Gemini request failed');
+  const retryAfterSeconds = parseRetryAfterSeconds(msg);
+
+  if (/too many requests|quota exceeded|rate limit|\b429\b/i.test(msg)) {
+    return {
+      appError: new AppError(
         429,
         'GEMINI_RATE_LIMIT',
         'Gemini quota exceeded or rate limited. Retry shortly, or check plan/billing.',
         { reason: msg, retryAfterSeconds }
-      );
+      ),
+      transient: true,
+      retryAfterSeconds
+    };
+  }
+  if (/api key|permission|unauthorized|auth/i.test(msg)) {
+    return {
+      appError: new AppError(401, 'GEMINI_AUTH_ERROR', 'Invalid Gemini API key', { reason: msg }),
+      transient: false,
+      retryAfterSeconds
+    };
+  }
+  if (/timeout|timed out|deadline/i.test(msg)) {
+    return {
+      appError: new AppError(504, 'GEMINI_TIMEOUT', 'Gemini request timed out', { reason: msg }),
+      transient: true,
+      retryAfterSeconds
+    };
+  }
+  if (/network|econnreset|enotfound|eai_again|service unavailable|unavailable|\b5\d\d\b|internal/i.test(msg)) {
+    return {
+      appError: new AppError(502, 'GEMINI_UPSTREAM_ERROR', 'Gemini request failed', { reason: msg }),
+      transient: true,
+      retryAfterSeconds
+    };
+  }
+
+  return {
+    appError: new AppError(502, 'GEMINI_UPSTREAM_ERROR', 'Gemini request failed', { reason: msg }),
+    transient: false,
+    retryAfterSeconds
+  };
+}
+
+export async function generateStructuredJson(prompt, { tag }) {
+  const model = genAI.getGenerativeModel({ model: config.geminiModel });
+  const maxRetries = Math.max(0, config.geminiMaxRetries);
+  const baseMs = Math.max(100, config.geminiRetryBaseMs);
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const start = Date.now();
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2
+        }
+      });
+
+      const text = result.response.text();
+      const latencyMs = Date.now() - start;
+      const usage = result.response.usageMetadata
+        ? {
+          promptTokenCount: result.response.usageMetadata.promptTokenCount,
+          candidatesTokenCount: result.response.usageMetadata.candidatesTokenCount,
+          totalTokenCount: result.response.usageMetadata.totalTokenCount,
+          latencyMs
+        }
+        : { latencyMs };
+      logTokenUsage(tag, usage);
+      return text;
+    } catch (error) {
+      const mapped = mapGeminiError(error);
+      const shouldRetry = mapped.transient && attempt < maxRetries;
+      if (!shouldRetry) {
+        throw mapped.appError;
+      }
+
+      const retryMs = mapped.retryAfterSeconds
+        ? mapped.retryAfterSeconds * 1000
+        : baseMs * (2 ** attempt);
+      await sleep(retryMs);
     }
-    if (/api key|permission|unauthorized|auth/i.test(msg)) {
-      throw new AppError(401, 'GEMINI_AUTH_ERROR', 'Invalid Gemini API key', { reason: msg });
-    }
-    if (/timeout|timed out|deadline/i.test(msg)) {
-      throw new AppError(504, 'GEMINI_TIMEOUT', 'Gemini request timed out', { reason: msg });
-    }
-    throw new AppError(502, 'GEMINI_UPSTREAM_ERROR', 'Gemini request failed', { reason: msg });
   }
 }
 

@@ -72,44 +72,149 @@ function wrapLine(line, maxChars = 92) {
   return wrapped;
 }
 
-function buildPdfFromLines(lines) {
+function parseMarkdownEntries(lines) {
+  const entries = [];
+
+  lines.forEach((line) => {
+    if (!line.trim()) {
+      entries.push({ type: 'spacer', amount: 8 });
+      return;
+    }
+
+    if (line.startsWith('# ')) {
+      const text = line.replace(/^#\s+/, '').trim();
+      wrapLine(text, 62).forEach((wrapped, idx) => {
+        entries.push({
+          text: wrapped,
+          font: 'F2',
+          size: 18,
+          indent: 0,
+          spacingBefore: idx === 0 ? 4 : 0,
+          spacingAfter: idx === 0 ? 6 : 0
+        });
+      });
+      return;
+    }
+
+    if (line.startsWith('## ')) {
+      const text = line.replace(/^##\s+/, '').trim().toUpperCase();
+      wrapLine(text, 76).forEach((wrapped, idx) => {
+        entries.push({
+          text: wrapped,
+          font: 'F2',
+          size: 12,
+          indent: 0,
+          spacingBefore: idx === 0 ? 10 : 0,
+          spacingAfter: idx === 0 ? 4 : 0
+        });
+      });
+      return;
+    }
+
+    if (line.startsWith('### ')) {
+      const text = line.replace(/^###\s+/, '').trim();
+      wrapLine(text, 82).forEach((wrapped, idx) => {
+        entries.push({
+          text: wrapped,
+          font: 'F2',
+          size: 11,
+          indent: 0,
+          spacingBefore: idx === 0 ? 8 : 0,
+          spacingAfter: idx === 0 ? 2 : 0
+        });
+      });
+      return;
+    }
+
+    if (line.startsWith('  - ')) {
+      const text = `- ${line.replace(/^  -\s+/, '').trim()}`;
+      wrapLine(text, 82).forEach((wrapped) => {
+        entries.push({ text: wrapped, font: 'F1', size: 10, indent: 24, spacingBefore: 0, spacingAfter: 0 });
+      });
+      return;
+    }
+
+    if (line.startsWith('- ')) {
+      const text = `- ${line.replace(/^-\s+/, '').trim()}`;
+      wrapLine(text, 86).forEach((wrapped) => {
+        entries.push({ text: wrapped, font: 'F1', size: 10, indent: 12, spacingBefore: 0, spacingAfter: 0 });
+      });
+      return;
+    }
+
+    wrapLine(line.trim(), 90).forEach((wrapped) => {
+      entries.push({ text: wrapped, font: 'F1', size: 10, indent: 0, spacingBefore: 0, spacingAfter: 0 });
+    });
+  });
+
+  return entries;
+}
+
+function layoutPdfPages(entries) {
   const pageHeight = 842;
   const marginTop = 800;
-  const lineHeight = 15;
-  const maxLinesPerPage = 48;
-
-  const normalized = lines
-    .flatMap((line) => wrapLine(line))
-    .map((line) => sanitizePdfText(line));
-
+  const marginBottom = 50;
+  const marginLeft = 50;
   const pages = [];
-  for (let i = 0; i < normalized.length; i += maxLinesPerPage) {
-    pages.push(normalized.slice(i, i + maxLinesPerPage));
+
+  let commands = [];
+  let cursorY = marginTop;
+
+  const pushPage = () => {
+    pages.push(commands.join('\n') || 'BT /F2 14 Tf 1 0 0 1 50 800 Tm (Vendor Shortlist Report) Tj ET');
+    commands = [];
+    cursorY = marginTop;
+  };
+
+  entries.forEach((entry) => {
+    if (entry.type === 'spacer') {
+      cursorY -= entry.amount;
+      if (cursorY < marginBottom) pushPage();
+      return;
+    }
+
+    cursorY -= entry.spacingBefore || 0;
+
+    const lineHeight = entry.size + 5;
+    if (cursorY - lineHeight < marginBottom) {
+      pushPage();
+    }
+
+    const x = marginLeft + (entry.indent || 0);
+    const safeText = sanitizePdfText(entry.text || ' ');
+    commands.push(`BT /${entry.font} ${entry.size} Tf 1 0 0 1 ${x} ${cursorY} Tm (${safeText}) Tj ET`);
+
+    cursorY -= lineHeight + (entry.spacingAfter || 0);
+  });
+
+  if (commands.length || pages.length === 0) {
+    pages.push(commands.join('\n') || 'BT /F2 14 Tf 1 0 0 1 50 800 Tm (Vendor Shortlist Report) Tj ET');
   }
-  if (pages.length === 0) pages.push(['Vendor Shortlist Report']);
+
+  return { pages, pageHeight };
+}
+
+function buildPdfFromLines(lines) {
+  const { pages, pageHeight } = layoutPdfPages(parseMarkdownEntries(lines));
 
   const objects = [];
   objects.push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
   objects.push('2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n');
   objects.push('3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+  objects.push('4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n');
 
   const pageObjectNums = [];
 
   pages.forEach((pageLines, index) => {
-    const pageObjNum = 4 + (index * 2);
+    const pageObjNum = 5 + (index * 2);
     const contentObjNum = pageObjNum + 1;
     pageObjectNums.push(pageObjNum);
 
-    const contentLines = pageLines.map((line, lineIdx) => {
-      if (lineIdx === 0) return `(${line || ' '}) Tj`;
-      return `T* (${line || ' '}) Tj`;
-    }).join('\n');
-
-    const contentStream = `BT\n/F1 11 Tf\n50 ${marginTop} Td\n${lineHeight} TL\n${contentLines}\nET`;
+    const contentStream = pageLines;
     const streamLength = new TextEncoder().encode(contentStream).length;
 
     objects.push(
-      `${pageObjNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjNum} 0 R >>\nendobj\n`
+      `${pageObjNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjNum} 0 R >>\nendobj\n`
     );
     objects.push(
       `${contentObjNum} 0 obj\n<< /Length ${streamLength} >>\nstream\n${contentStream}\nendstream\nendobj\n`
