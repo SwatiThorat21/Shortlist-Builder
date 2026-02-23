@@ -47,6 +47,12 @@ App that discovers vendors from a use-case prompt, scrapes public pricing/docs p
 - `MAX_VENDORS`
 - `RATE_LIMIT_WINDOW_MS`
 - `RATE_LIMIT_MAX`
+- `RATE_LIMIT_USE_REDIS`
+- `REDIS_URL`
+- `TRUST_PROXY`
+- `MAX_REQUEST_BODY_KB`
+- `SCRAPE_MAX_BYTES`
+- `SCRAPE_ALLOWED_CONTENT_TYPES`
 - `VITE_API_BASE_URL`
 
 ## API Endpoints
@@ -74,8 +80,12 @@ App that discovers vendors from a use-case prompt, scrapes public pricing/docs p
   - Status page for service checks
 - Reliability and guardrails:
   - Rate limit on shortlist build route
+  - User/IP keyed throttling with `Retry-After` response metadata
   - Request/error handling with consistent error responses
+  - Strict input validation for body/query/params with bounded lengths
   - CORS configuration via `FRONTEND_ORIGIN`
+  - Scraper guards for URL protocol, local/private address blocking, content-type checks, and response-size limits
+  - Cache observability fields (`hit_count`, `last_hit_at`) and expired-cache cleanup path
   - Tests for key backend/frontend units and integration paths
 
 ## What Is Not Done Yet
@@ -104,3 +114,20 @@ App that discovers vendors from a use-case prompt, scrapes public pricing/docs p
 - Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
 - Restrict frontend origin with `FRONTEND_ORIGIN`.
 - Keep Gemini/Supabase secrets in `.env`, never in frontend code.
+
+## Production Readiness
+- Validation strategy:
+  - Request body schemas are strict (`zod`) with max lengths and bounded array sizes.
+  - Query and path params are schema-validated before route handlers.
+  - Malformed JSON and oversized payloads return explicit `400/413` errors.
+- Rate limiting strategy:
+  - Build endpoint is throttled with standard headers and `Retry-After`.
+  - Client keying uses `x-user-id` when available, falling back to client IP.
+  - `TRUST_PROXY` is configurable for deployments behind reverse proxies.
+- Caching strategy:
+  - Scraped page content is cached in `vendor_page_cache` with TTL (`expires_at`).
+  - Cache hits can be tracked via `hit_count` and `last_hit_at`.
+  - Expired rows can be purged by scheduled SQL cleanup.
+- Test coverage:
+  - Unit tests cover schema boundaries, scoring/normalization logic, and scraper guardrails.
+  - Integration tests cover happy path, invalid input, service failures, and rate-limit behavior.

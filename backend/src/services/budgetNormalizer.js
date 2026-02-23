@@ -13,8 +13,8 @@ export function normalizeBudgetCategory(input) {
 export function normalizePriceCategory(priceRange) {
   const text = (priceRange || '').toLowerCase();
   if (/free|\$0|low|basic/.test(text)) return 'low';
-  if (/mid|standard|\$[1-9][0-9]{1,3}/.test(text)) return 'mid';
   if (/high|pro|premium|\$[1-9][0-9]{3,4}/.test(text)) return 'high';
+  if (/mid|standard|\$[1-9][0-9]{1,3}/.test(text)) return 'mid';
   if (/enterprise|custom|contact sales/.test(text)) return 'enterprise';
   return 'unknown';
 }

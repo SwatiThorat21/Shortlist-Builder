@@ -7,8 +7,9 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+app.set('trust proxy', config.trustProxy);
 app.use(cors({ origin: config.frontendOrigin }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: `${config.maxRequestBodyKb}kb` }));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

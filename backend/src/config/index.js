@@ -18,6 +18,28 @@ if (fs.existsSync(rootEnvPath)) {
 
 autoValidateEnv();
 
+function parseBoolean(value, defaultValue = false) {
+  if (value === undefined) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function parseTrustProxy(value) {
+  if (value === undefined || value === '') return 1;
+  const normalized = String(value).toLowerCase();
+  if (['false', '0', 'off', 'no'].includes(normalized)) return false;
+  if (['true', 'on', 'yes'].includes(normalized)) return true;
+  const maybeNumber = Number(value);
+  if (Number.isInteger(maybeNumber) && maybeNumber >= 0) return maybeNumber;
+  return value;
+}
+
+function parseCsv(value, fallback) {
+  return String(value || fallback)
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function autoValidateEnv() {
   const required = ['GEMINI_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
   if (process.env.NODE_ENV === 'test') return;
@@ -42,5 +64,14 @@ export const config = {
   scrapeMaxChars: Number(process.env.SCRAPE_MAX_CHARS || 12000),
   maxVendors: Number(process.env.MAX_VENDORS || 5),
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60000),
-  rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 20)
+  rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 20),
+  rateLimitUseRedis: parseBoolean(process.env.RATE_LIMIT_USE_REDIS),
+  redisUrl: process.env.REDIS_URL || '',
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  maxRequestBodyKb: Number(process.env.MAX_REQUEST_BODY_KB || 1024),
+  scrapeMaxBytes: Number(process.env.SCRAPE_MAX_BYTES || 1_000_000),
+  scrapeAllowedContentTypes: parseCsv(
+    process.env.SCRAPE_ALLOWED_CONTENT_TYPES,
+    'text/html,text/plain,application/xhtml+xml'
+  )
 };

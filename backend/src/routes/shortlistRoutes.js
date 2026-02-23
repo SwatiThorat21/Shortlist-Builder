@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { shortlistBuildRequestSchema } from '../schemas/shortlistSchemas.js';
-import { validate } from '../middleware/validateRequest.js';
+import {
+  shortlistBuildRequestSchema,
+  shortlistIdParamsSchema,
+  shortlistListQuerySchema
+} from '../schemas/shortlistSchemas.js';
+import { validateBody, validateParams, validateQuery } from '../middleware/validateRequest.js';
 import { buildShortlistRateLimit } from '../middleware/rateLimit.js';
 import { buildShortlist, listShortlists, removeShortlist } from '../services/shortlistService.js';
 
 const router = Router();
 
-router.post('/build', buildShortlistRateLimit, validate(shortlistBuildRequestSchema), async (req, res, next) => {
+router.post('/build', buildShortlistRateLimit, validateBody(shortlistBuildRequestSchema), async (req, res, next) => {
   try {
     const response = await buildShortlist(req.validatedBody);
     res.json(response);
@@ -16,20 +19,18 @@ router.post('/build', buildShortlistRateLimit, validate(shortlistBuildRequestSch
   }
 });
 
-router.get('/', async (req, res, next) => {
+router.get('/', validateQuery(shortlistListQuerySchema), async (req, res, next) => {
   try {
-    const limit = Number(req.query.limit || 5);
-    const records = await listShortlists(limit);
+    const records = await listShortlists(req.validatedQuery.limit);
     res.json({ items: records });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validateParams(shortlistIdParamsSchema), async (req, res, next) => {
   try {
-    z.string().uuid().parse(req.params.id);
-    await removeShortlist(req.params.id);
+    await removeShortlist(req.validatedParams.id);
     res.status(204).send();
   } catch (error) {
     next(error);

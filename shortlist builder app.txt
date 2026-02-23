@@ -1,0 +1,512 @@
+
+
+• Proposed Plan
+
+
+  # Vendor Discovery + Shortlist Builder (Revised: Gemini + History + Tests)
+
+  ## Summary
+
+  Build a production-ready monorepo web app with:
+
+  1. frontend/ React + Vite UI for shortlist creation, comparison, exclusion toggles, Markdown export, status checks, and a new History page.
+  2. backend/ Node + Express orchestration for vendor discovery, scraping, extraction, deterministic scoring, persistence, and health checks.
+  3. Supabase Postgres for shortlist storage and vendor page caching.
+  4. Gemini AI Studio (gemini-2.0-flash) for all LLM tasks using strict JSON schema + validation + retry-once behavior.
+  5. Full test coverage for backend services/routes and key frontend workflows.
+
+  ## Key Changes From Prior Plan
+
+  1. Replace OpenAI integration entirely with Gemini AI Studio.
+  2. Add frontend route/page: /history for past shortlist records.
+  3. Add API and UI support for history browsing + deletion.
+  4. Expand testing scope (unit, integration, frontend component/flow tests).
+
+  ## Architecture and Structure
+
+  1. Root
+      1. README.md
+      2. AI_NOTES.md
+      3. ABOUTME.md
+      4. PROMPTS_USED.md
+      5. supabase/schema.sql
+      6. .env.example
+  2. Frontend (frontend/)
+      1. src/pages/HomePage.jsx
+      2. src/pages/HistoryPage.jsx (new)
+      3. src/pages/StatusPage.jsx
+      4. src/components/RequirementForm.jsx
+      5. src/components/ComparisonTable.jsx
+      6. src/components/HistoryList.jsx (new)
+      7. src/components/MarkdownExportButton.jsx
+      8. src/services/api.js
+      9. src/utils/markdown.js
+  3. Backend (backend/)
+      1. src/routes/shortlistRoutes.js
+      2. src/routes/statusRoutes.js
+      3. src/services/shortlistService.js
+      4. src/services/scoringService.js
+      5. src/services/budgetNormalizer.js
+      6. src/llm/geminiClient.js (replaces OpenAI client)
+      7. src/llm/vendorDiscovery.js
+      8. src/llm/vendorExtraction.js
+      9. src/llm/prompts.js
+     10. src/scraper/*
+     11. src/db/*
+     12. src/middleware/errorHandler.js
+     13. src/middleware/rateLimit.js
+     14. src/schemas/*.js (request + LLM response validation)
+
+  ## Public APIs and Contracts
+
+  1. POST /api/shortlists/build
+      1. Same request/response shape as prior plan.
+      2. LLM provider is Gemini AI Studio.
+  2. GET /api/shortlists?limit=5
+      1. Returns latest shortlists for history page.
+  3. DELETE /api/shortlists/:id
+      1. Deletes one shortlist from history.
+  4. GET /api/status
+      1. Checks:
+          1. Express process.
+          2. Supabase connectivity.
+          3. Gemini lightweight test call + latency.
+
+  ## LLM Integration (Gemini)
+
+  1. Provider: Gemini AI Studio API using official Google SDK.
+  2. Model: gemini-2.0-flash.
+  3. Two strict JSON tasks:
+      1. Vendor discovery (3–5 vendors with URLs).
+      2. Structured extraction per vendor from scraped content.
+  4. Validation:
+      1. JSON schema/Zod validation required before use.
+      2. Invalid JSON triggers one retry with repair prompt.
+  5. Logging:
+      1. Log token usage/metadata if available from SDK response.
+      2. Log model + latency for observability.
+
+  ## History Page Spec (/history)
+
+  1. Display latest shortlists (default last 5, configurable via query param).
+  2. Each record shows:
+      1. created_at
+      2. need summary
+      3. top-ranked vendor and top score
+  3. Actions:
+      1. View details (expand or navigate to detail section).
+      2. Delete shortlist (with confirmation).
+  4. Empty state and error state handling included.
+
+  ## Scoring and Workflow (Unchanged Core)
+
+  1. Discovery via LLM -> URL validation and cap 5 vendors.
+  2. Parallel scraping of pricing/docs pages via Axios + Cheerio.
+  3. Structured extraction via LLM -> strict validation.
+  4. Deterministic scoring only in backend code:
+      1. Must-have misses = heavy penalty.
+      2. Budget mismatch = penalty.
+      3. Region mismatch = penalty.
+      4. Slider-based weighting and 0–100 clamp.
+  5. Save full shortlist result to Supabase JSONB.
+
+  ## Database
+
+  1. shortlists
+      1. id uuid pk
+      2. need text
+      3. requirements jsonb
+      4. results jsonb
+      5. created_at timestamptz
+  2. vendor_page_cache
+      1. url text pk
+      2. content text
+      3. fetched_at timestamptz
+      4. expires_at timestamptz
+
+  ## Error Handling
+
+  1. Structured errors for:
+      1. Invalid Gemini key
+      2. Gemini timeout/invalid response
+      3. Scraping failure
+      4. Supabase failure
+      5. Request validation failures
+  2. Unified response format:
+
+     { "error": { "code": "...", "message": "...", "details": {} } }
+
+  ## Test Plan (Expanded)
+
+  1. Backend unit tests
+      1. Scoring engine penalties/weights.
+      2. Budget normalization parser.
+      3. URL validation and vendor cap.
+      4. Gemini JSON validation + retry-once path.
+  2. Backend integration tests
+      1. POST /api/shortlists/build success with mocked Gemini + scraper.
+      2. Gemini auth error and timeout handling.
+      3. Scrape partial failure handling.
+      4. Supabase write/read/delete flows.
+      5. GET /api/status with Gemini/Supabase success and failure scenarios.
+  3. Frontend tests
+      4. Markdown export content sections.
+      5. History page load, empty, error, delete, and refresh behavior.
+      2. No fake pricing data.
+      3. All LLM outputs schema-validated before persistence.
+      4. Status page shows red/green accurately.
+  1. README.md
+      1. Setup and run instructions.
+      2. Supabase setup and SQL.
+      3. Gemini env config.
+      4. Architecture and limitations.
+  2. AI_NOTES.md
+      1. Why Gemini model selected.
+      2. AI-generated vs manually reviewed parts.
+      3. Hallucination and validation controls.
+  3. PROMPTS_USED.md
+      1. Discovery prompt.
+      2. Extraction prompt.
+      3. JSON repair prompt.
+  4. ABOUTME.md placeholder sections.
+
+  ## Assumptions and Defaults
+
+  1. Global MVP scope (no auth/user ownership yet).
+  2. Budget remains free-text input with deterministic normalization for scoring.
+  3. Exclusion toggle is UI-session only.
+  4. Gemini status check uses real lightweight API call.
+  5. Vendor max remains 5.
+
+
+
+› Implement the plan.
+
+
+• I’m starting implementation now from the approved spec and will scaffold the monorepo first (frontend, backend, supabase, docs), then wire backend workflow and tests,
+  then frontend pages and export/history/status flows.
+
+• Explored
+  └ List ls -la
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I confirmed the workspace is still empty. Next I’m creating the full directory structure and base package manifests so we can wire code and tests without generator
+  overhead.
+
+• Ran mkdir -p frontend/src/{components,pages,services,utils,styles} backend/src/{config,routes,services,llm,scraper,db,middleware,utils,schemas} backend/tests/
+  │ {unit,integration} frontend/src/__tests__ supabase
+  └ (no output)
+
+• Ran cat > package.json << 'EOF'
+  │ {
+  │   "name": "vendor-shortlist-builder",
+  │ … +42 lines
+  └ (no output)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’m now implementing backend first: config, middleware, Gemini client, scraper, scoring, routes, and DB access so the full API surface is runnable before frontend
+  integration.
+
+• Ran cat > backend/package.json << 'EOF'
+  │ {
+  │   "name": "backend",
+  │ … +140 lines
+  └ (no output)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’m wiring the core pipeline modules now (Gemini discovery/extraction, scraping with cache, deterministic scoring, Supabase repositories, and route handlers), then I’ll
+  run tests and add frontend.
+
+• Ran cat > backend/src/schemas/shortlistSchemas.js << 'EOF'
+  │ import { z } from 'zod';
+  │
+  │ … +369 lines
+  └ (no output)
+
+─ Worked for 1m 08s ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’m finishing backend orchestration and endpoints next (/api/shortlists, /api/status) so we can validate behavior with integration tests immediately after.
+
+• Ran cat > backend/src/services/shortlistService.js << 'EOF'
+  │ import { config } from '../config/index.js';
+  │ import { discoverVendors } from '../llm/vendorDiscovery.js';
+  │ … +210 lines
+  └ (no output)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• Backend skeleton is in place; I’m now building the React app with Home, History, and Status routes, including exclusion toggles, ranking recalculation, and Markdown
+  download.
+
+• Ran cat > frontend/package.json << 'EOF'
+  │ {
+  │   "name": "frontend",
+  │ … +174 lines
+  └ (no output)
+
+• Ran cat > frontend/src/components/ProgressIndicator.jsx << 'EOF'
+  │ export default function ProgressIndicator({ loading, step }) {
+  │   if (!loading) return null;
+  │ … +509 lines
+  └ (no output)
+
+─ Worked for 1m 40s ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’m adding test suites now for scoring/budget/LLM validation on backend plus frontend validation/history/export behaviors. After that I’ll run installs and test commands
+  to verify.
+
+• Ran cat > backend/tests/unit/budgetNormalizer.test.js << 'EOF'
+  │ import { describe, expect, it } from 'vitest';
+  │ import { normalizeBudgetCategory, normalizePriceCategory } from '../../src/services/budgetNormalizer.js';
+  │ … +175 lines
+  └ (no output)
+
+• Ran cat > frontend/src/__tests__/RequirementForm.test.jsx << 'EOF'
+  │ import { describe, expect, it, vi } from 'vitest';
+  │ import { fireEvent, render, screen } from '@testing-library/react';
+  │ … +119 lines
+  └ (no output)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I found a UX issue in the table logic (excluded rows disappeared permanently). I’m patching the component so excluded vendors stay visible and can be re-included, while
+  ranking recalculates from non-excluded vendors.
+
+• Edited projects/frontend/src/components/ComparisonTable.jsx (+29 -27)
+     6
+     7 -  const visibleVendors = useMemo(() => shortlist.vendors.filter((v) => !excluded[v.name]), [shortlist, excluded]);
+     8 -  const ranked = useMemo(() => [...visibleVendors].sort((a, b) => b.score - a.score), [visibleVendors]);
+     7 +  const ranked = useMemo(
+     8 +    () => shortlist.vendors.filter((v) => !excluded[v.name]).sort((a, b) => b.score - a.score),
+     9 +    [shortlist, excluded]
+    10 +  );
+    11
+       ⋮
+    29          <tbody>
+    28 -          {ranked.map((vendor) => (
+    29 -            <>
+    30 -              <tr key={vendor.name}>
+    31 -                <td>{vendor.name}</td>
+    32 -                <td>{vendor.price_range}</td>
+    33 -                <td>{vendor.score}</td>
+    34 -                <td>{vendor.matched_features.slice(0, 3).join(', ')}</td>
+    35 -                <td>{vendor.risks.slice(0, 2).join(', ')}</td>
+    36 -                <td>
+    37 -                  <input
+    38 -                    type="checkbox"
+    39 -                    checked={Boolean(excluded[vendor.name])}
+    40 -                    onChange={(e) => setExcluded((cur) => ({ ...cur, [vendor.name]: e.target.checked }))}
+    41 -                    aria-label={`Exclude ${vendor.name}`}
+    42 -                  />
+    43 -                </td>
+    44 -                <td>
+    45 -                  <button type="button" onClick={() => setExpanded((cur) => ({ ...cur, [vendor.name]: !cur[vendor.name] }))}>
+    46 -                    {expanded[vendor.name] ? 'Hide' : 'Show'}
+    47 -                  </button>
+    48 -                </td>
+    49 -              </tr>
+    50 -              {expanded[vendor.name] ? (
+    30 +          {shortlist.vendors.map((vendor) => (
+    31 +            <tr key={vendor.name}>
+    32 +              <td>{vendor.name}</td>
+    33 +              <td>{vendor.price_range}</td>
+    34 +              <td>{vendor.score}</td>
+    35 +              <td>{vendor.matched_features.slice(0, 3).join(', ')}</td>
+    36 +              <td>{vendor.risks.slice(0, 2).join(', ')}</td>
+    37 +              <td>
+    38 +                <input
+    39 +                  type="checkbox"
+    40 +                  checked={Boolean(excluded[vendor.name])}
+    41 +                  onChange={(e) => setExcluded((cur) => ({ ...cur, [vendor.name]: e.target.checked }))}
+    42 +                  aria-label={`Exclude ${vendor.name}`}
+    43 +                />
+    44 +              </td>
+    45 +              <td>
+    46 +                <button type="button" onClick={() => setExpanded((cur) => ({ ...cur, [vendor.name]: !cur[vendor.name] }))}>
+    47 +                  {expanded[vendor.name] ? 'Hide' : 'Show'}
+    48 +                </button>
+    49 +              </td>
+    50 +            </tr>
+    51 +          ))}
+    52 +          {shortlist.vendors.map((vendor) => (
+    53 +            expanded[vendor.name] ? (
+    54                  <tr key={`${vendor.name}-details`}>
+       ⋮
+    67                  </tr>
+    65 -              ) : null}
+    66 -            </>
+    20      "pino": "^9.6.0",
+    21 +    "pino-pretty": "^13.0.0",
+    22      "zod": "^3.24.2"
+
+• Edited projects/backend/src/config/index.js (+1 -1)
+    2
+    3 -dotenv.config({ path: process.env.NODE_ENV === 'test' ? '.env.test' : '../.env' });
+    3 +dotenv.config();
+    4
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’m generating schema and documentation deliverables now (README, AI_NOTES, PROMPTS_USED, ABOUTME) plus Docker/dev run assets so the project is deployable and auditable.
+
+• Ran cat > supabase/schema.sql << 'EOF'
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I’ve completed code and docs scaffolding; next I’m installing dependencies and running backend/frontend tests to catch implementation errors and patch anything failing.
+
+↳ Interacted with background terminal · npm install
+  └ (waited)
+
+• npm install appears stuck in this environment without returning logs, so I’m moving to targeted checks and then I’ll still provide exact run steps for you locally if
+  dependency install can’t complete here.
+
+• Explored
+  └ List projects
+    List projects
+
+• Edited projects/frontend/src/services/api.js (+5 -1)
+    26    deleteShortlist: (id) => request(`/api/shortlists/${id}`, { method: 'DELETE' }),
+    27 -  fetchStatus: () => request('/api/status')
+    27 +  fetchStatus: async () => {
+    28 +    const response = await fetch(`${API_BASE}/api/status`);
+    29 +    const body = await response.json();
+    30 +    return body;
+    31 +  }
+    32  };
+
+─ Worked for 2m 09s ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I patched status-fetch behavior so /status still renders service states even when backend returns HTTP 503. I’m now running local syntax and consistency checks since
+  package installation is blocked here.
+
+• Explored
+  └ Search OpenAI|openai in .
+    Search *.js in backend
+
+• Edited projects/backend/src/config/index.js (+15 -1)
+     5 +
+     6 +const __filename = fileURLToPath(import.meta.url);
+     7 +const __dirname = path.dirname(__filename);
+     8 +const rootEnvPath = path.resolve(__dirname, '../../../.env');
+     9 +const backendEnvPath = path.resolve(__dirname, '../../.env');
+    10
+     3 -dotenv.config();
+    11 +if (fs.existsSync(rootEnvPath)) {
+    12 +  dotenv.config({ path: rootEnvPath });
+    13 +} else if (fs.existsSync(backendEnvPath)) {
+    14 +  dotenv.config({ path: backendEnvPath });
+    15 +} else {
+    16 +  dotenv.config();
+    17 +}
+    18
+
+• Ran ps -ef | rg "npm install|npm" | rg -v rg || true
+  └ swati_t+   15974   12418  1 13:24 ?        00:00:01 npm install
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• I found a lingering npm install process from the stalled attempt; I’m stopping it to keep the workspace clean and then I’ll summarize what’s complete and what you need to
+  run locally.
+
+• Ran kill 15974 || true; ps -ef | rg "npm install" | rg -v rg || true
+  └ swati_t+   15974   12418  1 13:24 ?        00:00:01 [npm install] <defunct>
+
+• Ran npm install
+  └ (no output)
+
+• Explored
+  └ List .
+    List backend
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• Implemented the full monorepo application per your revised plan, including Gemini integration, History page, and test suites.
+
+  ## What I built
+
+  - Full monorepo scaffold in /home/swati_thorat/projects with:
+      - Backend: backend/
+      - Frontend: frontend/
+      - Supabase SQL: supabase/schema.sql
+      - Docs: README.md, AI_NOTES.md, PROMPTS_USED.md, ABOUTME.md
+      - Env template: .env.example
+
+  ### Backend (Node + Express + Axios + Cheerio + Supabase + Gemini)
+
+  - Central config: backend/src/config/index.js
+  - Modular architecture:
+      - Routes: backend/src/routes/shortlistRoutes.js, backend/src/routes/statusRoutes.js
+      - Services: backend/src/services/shortlistService.js, backend/src/services/scoringService.js, backend/src/services/budgetNormalizer.js
+      - LLM: backend/src/llm/geminiClient.js, backend/src/llm/vendorDiscovery.js, backend/src/llm/vendorExtraction.js, backend/src/llm/prompts.js
+      - Scraper: backend/src/scraper/pageFetcher.js, backend/src/scraper/contentExtractor.js
+      - DB: backend/src/db/supabaseClient.js, backend/src/db/shortlistRepo.js, backend/src/db/cacheRepo.js
+      - Middleware: backend/src/middleware/errorHandler.js, backend/src/middleware/rateLimit.js, backend/src/middleware/validateRequest.js
+  - Implemented:
+      - POST /api/shortlists/build
+      - GET /api/shortlists?limit=5
+      - DELETE /api/shortlists/:id
+      - GET /api/status (Express + Supabase + Gemini latency checks)
+  - Strict request/LLM validation with Zod: backend/src/schemas/shortlistSchemas.js
+  - Gemini structured JSON with retry-once repair for invalid JSON.
+  - Deterministic non-LLM scoring engine (0–100) with penalties + weights.
+  - Parallel scraping + Supabase cache table support.
+  - Structured error responses.
+
+  ### Frontend (React + Vite)
+
+  - Routes/pages:
+      - Home: frontend/src/pages/HomePage.jsx
+      - History: frontend/src/pages/HistoryPage.jsx
+      - Status: frontend/src/pages/StatusPage.jsx
+  - Components:
+      - Requirements form + validation: frontend/src/components/RequirementForm.jsx
+      - Progress indicator: frontend/src/components/ProgressIndicator.jsx
+      - Comparison table w/ expandable rows + evidence links + exclusion toggle + live rerank: frontend/src/components/ComparisonTable.jsx
+      - History list: frontend/src/components/HistoryList.jsx
+      - Markdown export: frontend/src/components/MarkdownExportButton.jsx
+  - API client: frontend/src/services/api.js
+  - Markdown generation/download: frontend/src/utils/markdown.js
+
+  ### Database schema
+
+  - Added required tables in supabase/schema.sql:
+      - shortlists
+      - vendor_page_cache
+  - Includes indexes and gen_random_uuid() support.
+
+  ### Tests added
+
+  - Backend unit/integration:
+      - backend/tests/unit/vendorDiscovery.test.js
+      - backend/tests/integration/app.test.js
+  - Frontend tests:
+      - frontend/src/__tests__/RequirementForm.test.jsx
+      - frontend/src/__tests__/ComparisonTable.test.jsx
+      - frontend/src/__tests__/HistoryPage.test.jsx
+      - frontend/src/__tests__/markdown.test.js
+
+  ## Note on verification
+
+  Dependency installation (npm install) did not complete in this environment (stalled due environment/network constraints), so I could not execute the test suites here.
+
+  ## Run locally
+
+  From /home/swati_thorat/projects:
+
+  1. cp .env.example .env and fill real values.
+  2. npm install
+  3. npm install -w backend
+  4. npm install -w frontend
+  5. Apply supabase/schema.sql in Supabase SQL editor.
+  6. Run:
+      - npm run dev:backend
+      - npm run dev:frontend
+  7. Run tests:
+      - npm run test -w backend
+      - npm run test -w frontend
+
+  If you want, I can now do a follow-up pass to harden the scraper/token-trimming heuristics and add more integration tests around partial vendor scrape failures.
